@@ -10,8 +10,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 
-using Fahrenheit.CoreLib;
-using Fahrenheit.CoreLib.FFX;
+using Fahrenheit.Core;
+using Fahrenheit.Core.FFX;
 
 namespace Fahrenheit.Tools.DEdit;
 

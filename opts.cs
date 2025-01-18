@@ -3,7 +3,7 @@ using System.CommandLine;
 using System.CommandLine.Binding;
 using System.IO;
 
-using Fahrenheit.CoreLib;
+using Fahrenheit.Core;
 
 namespace Fahrenheit.Tools.DEdit;
 
