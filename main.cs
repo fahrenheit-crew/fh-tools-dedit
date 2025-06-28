@@ -1,5 +1,5 @@
 ﻿/* [fkelava 17/5/23 02:48]
- * A shitty, quick tool to emit (mostly?!) valid C# from swidx C header.
+ * A shitty, quick tool to emit (mostly?!) valid C# from C header.
  *
  * Only and specifically used to convert #defines to C# enums for constant imports.
  */
@@ -23,7 +23,6 @@ internal enum FhDEditMode {
 
 internal class Program {
     static void Main(string[] args) {
-        Console.WriteLine($"{nameof(Fahrenheit)}.{nameof(DEdit)}\n");
         Console.WriteLine($"Started with args: {string.Join(' ', args)}\n");
 
         Option<FhDEditMode> opt_mode    = new Option<FhDEditMode>("--mode") { Description = "Select the DEdit operating mode." };
