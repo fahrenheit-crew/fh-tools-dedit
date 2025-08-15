@@ -17,6 +17,12 @@
         <Product>Fahrenheit Dialogue Editor</Product>
     </PropertyGroup>
 
+    <!-- PUBLISH SETTINGS -->
+    <PropertyGroup>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>false</SelfContained>
+    </PropertyGroup>
+
     <!-- SDK REFERENCES -->
     <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
     <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
