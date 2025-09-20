@@ -1,4 +1,6 @@
-﻿/* [fkelava 17/5/23 02:48]
+﻿// SPDX-License-Identifier: MIT
+
+/* [fkelava 17/5/23 02:48]
  * A shitty, quick tool to emit (mostly?!) valid C# from C header.
  *
  * Only and specifically used to convert #defines to C# enums for constant imports.
@@ -11,7 +13,6 @@ using System.IO;
 using System.Text;
 
 using Fahrenheit.Core;
-using Fahrenheit.Core.FFX;
 
 namespace Fahrenheit.Tools.DEdit;
 
