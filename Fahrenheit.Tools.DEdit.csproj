@@ -35,7 +35,6 @@
     <!-- PROJECT REFERENCES -->
     <ItemGroup>
         <ProjectReference Include="..\..\core\framework\Fahrenheit.Core.csproj">
-            <ExcludeAssets Condition="'$(Configuration)'=='Release'">runtime;native</ExcludeAssets>
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
         </ProjectReference>
     </ItemGroup>
