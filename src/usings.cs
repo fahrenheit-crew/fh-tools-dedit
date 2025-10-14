@@ -1,6 +1,7 @@
 ﻿// SPDX-License-Identifier: MIT
 
 global using System;
+global using System.Buffers.Binary;
 global using System.CommandLine;
 global using System.CommandLine.Parsing;
 global using System.Collections.Generic;
