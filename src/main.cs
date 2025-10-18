@@ -1,8 +1,5 @@
 ﻿// SPDX-License-Identifier: MIT
 
-using System.Buffers;
-using System.Runtime.InteropServices;
-
 namespace Fahrenheit.Tools.DEdit;
 
 internal static class Program {
@@ -48,8 +45,6 @@ internal static class Program {
     }
 
     private static int Main(string[] args) {
-        Console.WriteLine($"Started with args: {string.Join(' ', args)}\n");
-
         RootCommand cmd_root = new("Perform various operations on FFX/X-2 dialogue files and character sets.");
 
         Option<List<FileInfo>> opt_input = new("--input", "-i") {
@@ -136,6 +131,8 @@ internal static class Program {
         FhDialogueIndexType index_type,
         FhGameType          game_type)
     {
+        Stopwatch perf = Stopwatch.StartNew();
+
         foreach (FileInfo input_file in input_files) {
             string output_path = Path.Join(output_dir, $"{input_file.Name}.txt");
 
@@ -145,8 +142,10 @@ internal static class Program {
                 output_writer.Write(_decompile(input_file_stream, game_lang, index_type, game_type));
             }
 
-            Console.WriteLine($"{input_file.Name} -> {output_path}.");
+            Console.WriteLine($"{input_file.Name} -> {output_path}");
         }
+
+        Console.WriteLine($"processed {input_files.Count} files in {perf.Elapsed}");
     }
 
     /// <summary>
@@ -162,6 +161,8 @@ internal static class Program {
         FileInfo            macro_dict
         )
     {
+        Stopwatch perf = Stopwatch.StartNew();
+
         foreach (FileInfo input_file in input_files) {
             string output_path = Path.Join(output_dir, $"{Path.GetFileNameWithoutExtension(input_file.FullName)}");
 
@@ -171,8 +172,10 @@ internal static class Program {
                 _compile(input_file_stream, macro_file_stream, output_file_stream, game_lang, index_type, game_type);
             }
 
-            Console.WriteLine($"{input_file.Name} -> {output_path}.");
+            Console.WriteLine($"{input_file.Name} -> {output_path}");
         }
+
+        Console.WriteLine($"processed {input_files.Count} files in {perf.Elapsed}");
     }
 
    /* [fkelava 14/10/25 20:09]
@@ -235,9 +238,9 @@ internal static class Program {
                 int end   = indices[k + 1];
 
                 ReadOnlySpan<byte> src  = macro_dict_bytes[ start .. end ];
-                byte[]             dest = ArrayPool<byte>.Shared.Rent(src.Length * 8); // todo: unfuck
+                byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, game_lang, game_type));
 
-                int dest_written = FhCharset.decode(src, dest, game_lang, game_type);
+                int dest_written  = FhCharset.decode(src, dest, game_lang, game_type);
                 _macro_refs[i][k] = Encoding.UTF8.GetString(dest[ .. dest_written ]);
 
                 ArrayPool<byte>.Shared.Return(dest);
@@ -281,7 +284,7 @@ internal static class Program {
             int end   = indices[i + 1];
 
             ReadOnlySpan<byte> src  = input_bytes[start .. end];
-            byte[]             dest = new byte[src.Length * 8]; // todo: unfuck
+            byte[]             dest = new byte[FhCharset.compute_decode_buffer_size(src, game_lang, game_type)];
 
             int dest_written = FhCharset.decode(src, dest, game_lang, game_type);
             sb.Append(Encoding.UTF8.GetString(dest[ .. dest_written ]));
@@ -307,7 +310,7 @@ internal static class Program {
         Span<byte> input_bytes = new byte[input_file.Length];
         input_file.ReadExactly(input_bytes);
 
-        Span<byte> dest = new byte[input_bytes.Length];
+        Span<byte> dest = new byte[FhCharset.compute_encode_buffer_size(input_bytes, game_lang, game_type)];
         int dest_written = FhCharset.encode(input_bytes, dest, game_lang, game_type);
 
         Span<byte> indices = new byte[FhCharset.compute_index_buffer_size(input_bytes, index_type)];
