@@ -136,10 +136,9 @@ internal static class Program {
         foreach (FileInfo input_file in input_files) {
             string output_path = Path.Join(output_dir, $"{input_file.Name}.txt");
 
-            using (FileStream   input_file_stream  = input_file.OpenRead())
-            using (FileStream   output_file_stream = new FileStream  (output_path, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (StreamWriter output_writer      = new StreamWriter(output_file_stream, Encoding.UTF8)) {
-                output_writer.Write(_decompile(input_file_stream, game_lang, index_type, game_type));
+            using (FileStream input_file_stream  = input_file.OpenRead())
+            using (FileStream output_file_stream = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None)) {
+                _decompile(input_file_stream, output_file_stream, game_lang, index_type, game_type);
             }
 
             Console.WriteLine($"{input_file.Name} -> {output_path}");
@@ -252,14 +251,13 @@ internal static class Program {
     ///     Converts a game-encoded dialogue <paramref name="input_file"/> into a text file in DEdit syntax, for a specified
     ///     <paramref name="game_type"/>, <paramref name="index_type"/>, and <paramref name="game_lang"/>.
     /// </summary>
-    private static string _decompile(
+    private static void _decompile(
         FileStream          input_file,
+        FileStream          output_file,
         FhLangId            game_lang,
         FhDialogueIndexType index_type,
         FhGameType          game_type)
     {
-        StringBuilder sb = new();
-
         Span<byte> input_bytes = new byte[input_file.Length];
         input_file.ReadExactly(input_bytes);
 
@@ -284,13 +282,13 @@ internal static class Program {
             int end   = indices[i + 1];
 
             ReadOnlySpan<byte> src  = input_bytes[start .. end];
-            byte[]             dest = new byte[FhCharset.compute_decode_buffer_size(src, game_lang, game_type)];
+            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, game_lang, game_type));
 
             int dest_written = FhCharset.decode(src, dest, game_lang, game_type);
-            sb.Append(Encoding.UTF8.GetString(dest[ .. dest_written ]));
-        }
+            output_file.Write(dest.AsSpan()[ .. dest_written ]);
 
-        return sb.ToString();
+            ArrayPool<byte>.Shared.Return(dest);
+        }
     }
 
     /// <summary>
