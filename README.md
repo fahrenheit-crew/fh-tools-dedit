@@ -1,0 +1,79 @@
+# Fahrenheit Dialogue Editor (DEdit)
+---
+
+DEdit is a standalone application that utilizes Fahrenheit's
+``FhCharset`` API to perform transformations between UTF-8
+and game encoding. Resulting dialogue files can be distributed
+alongside Fahrenheit mods and replace original game dialogue
+using the External File Loader.
+
+All transformations DEdit offers are also available at runtime for Fahrenheit mods.
+
+### Obtaining releases
+
+Releases are available in the
+[main Fahrenheit repository](https://github.com/peppy-enterprises/fahrenheit/releases).
+
+### Building from source
+
+DEdit is built alongside Fahrenheit. Clone the
+[main Fahrenheit repository](https://github.com/peppy-enterprises/fahrenheit/releases) to begin,
+and build it using the instructions in that repository.
+
+Debug builds of DEdit can be run from Visual Studio.
+Release builds can be generated and placed in the correct place with the
+[`tools/deploy.ps1` script](https://github.com/peppy-enterprises/fahrenheit/blob/main/tools/deploy.ps1).
+
+### Usage
+
+The simplest and recommended way to use DEdit is to place arguments
+into a response file, one argument per line, then invoke DEdit as such:
+```
+PS> cat test.rsp
+decompile
+-i
+"znkd0900.bin"
+"znkd1000.bin"
+"znkd1300.bin"
+"znkd1200.bin"
+"znkd1400.bin"
+-o
+D:\work\dedit\test
+-l
+Chinese
+-g
+FFX
+-it
+I32_X2
+```
+```
+.\fhdedit.exe '@test.rsp'
+```
+
+At a minimum you must specify any number of input files (`-i`),
+the selected game type (`-g`), game language (`-l`), index type
+(`-it`), and an output folder (`-o`). The output folder must already exist.
+
+The following commands and arguments are available:
+```
+Usage:
+  fhdedit [command] [options]
+
+Options:
+  -?, -h, --help                                              Show help and usage information
+  --version                                                   Show version information
+  -i, --input                                                 Input file(s) to process. []
+  -o, --output                                                What folder to emit outputs to. The folder must already
+                                                              exist.
+  -l, --lang                                                  Set the language to interpret the input file as.
+  <Chinese|Debug|English|French|German|Italian|Japanese|Kore
+  an|Spanish>
+  -it, --index-type <I16_X1|I16_X2|I32_X1|I32_X2>             Set the indexing type for the dialogue file in question.
+  -g, --game-type <FFX|FFX2|NULL>                             Set the game type for the dialogue file in question.
+  -m, --macro-dict                                            The dictionary to use to resolve any encountered macro
+                                                              refs.
+
+Commands:
+  decompile  Decompiles a dialogue file.
+  compile    Compiles a dialogue file.
+```
