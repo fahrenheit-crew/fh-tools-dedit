@@ -67,13 +67,13 @@ internal static class Program {
             Recursive   = true
         };
 
-        Option<FhDialogueIndexType> opt_index = new Option<FhDialogueIndexType>("--index-type", "-it") {
+        Option<FhTextIndexType> opt_index = new Option<FhTextIndexType>("--index-type", "-it") {
             Description = "Set the indexing type for the dialogue file in question.",
             Arity       = ArgumentArity.ExactlyOne,
             Recursive   = true
         };
 
-        Option<FhGameType> opt_game = new Option<FhGameType>("--game-type", "-g") {
+        Option<FhGameId> opt_game = new Option<FhGameId>("--game-type", "-g") {
             Description = "Set the game type for the dialogue file in question.",
             Arity       = ArgumentArity.ExactlyOne,
             Recursive   = true
@@ -122,14 +122,14 @@ internal static class Program {
 
     /// <summary>
     ///     Converts all game-encoded dialogue files in <paramref name="input_files"/> into text files in DEdit syntax, for a specified
-    ///     <paramref name="game_type"/>, <paramref name="index_type"/>, and <paramref name="game_lang"/>, emitting them to <paramref name="output_dir"/>.
+    ///     <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>, emitting them to <paramref name="output_dir"/>.
     /// </summary>
     private static void _c_decompile(
-        List<FileInfo>      input_files,
-        string              output_dir,
-        FhLangId            game_lang,
-        FhDialogueIndexType index_type,
-        FhGameType          game_type)
+        List<FileInfo>  input_files,
+        string          output_dir,
+        FhLangId        lang,
+        FhTextIndexType index_type,
+        FhGameId        game)
     {
         Stopwatch perf = Stopwatch.StartNew();
 
@@ -138,7 +138,7 @@ internal static class Program {
 
             using (FileStream input_file_stream  = input_file.OpenRead())
             using (FileStream output_file_stream = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                _decompile(input_file_stream, output_file_stream, game_lang, index_type, game_type);
+                _decompile(input_file_stream, output_file_stream, lang, index_type, game);
             }
 
             Console.WriteLine($"{input_file.Name} -> {output_path}");
@@ -149,15 +149,15 @@ internal static class Program {
 
     /// <summary>
     ///     Converts all text files in DEdit syntax in <paramref name="input_files"/> into game-encoded dialogue files,
-    ///     for a specified <paramref name="game_type"/>, <paramref name="index_type"/>, and <paramref name="game_lang"/>, emitting them to <paramref name="output_dir"/>.
+    ///     for a specified <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>, emitting them to <paramref name="output_dir"/>.
     /// </summary>
     private static void _c_compile(
-        List<FileInfo>      input_files,
-        string              output_dir,
-        FhLangId            game_lang,
-        FhDialogueIndexType index_type,
-        FhGameType          game_type,
-        FileInfo            macro_dict
+        List<FileInfo>  input_files,
+        string          output_dir,
+        FhLangId        lang,
+        FhTextIndexType index_type,
+        FhGameId        game,
+        FileInfo        macro_dict
         )
     {
         Stopwatch perf = Stopwatch.StartNew();
@@ -168,7 +168,7 @@ internal static class Program {
             using (FileStream input_file_stream  = input_file.OpenRead())
             using (FileStream output_file_stream = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None))
             using (FileStream macro_file_stream  = macro_dict.OpenRead()) {
-                _compile(input_file_stream, macro_file_stream, output_file_stream, game_lang, index_type, game_type);
+                _compile(input_file_stream, macro_file_stream, output_file_stream, lang, index_type, game);
             }
 
             Console.WriteLine($"{input_file.Name} -> {output_path}");
@@ -192,12 +192,12 @@ internal static class Program {
     /// <summary>
     ///     Processes a input <paramref name="macro_dict_file"/>, enabling its use to resolve {MACRO} ops during (de)compilation.
     ///     <para/>
-    ///     The correct <paramref name="game_lang"/> and <paramref name="game_type"/> must be specified.
+    ///     The correct <paramref name="lang"/> and <paramref name="game"/> must be specified.
     /// </summary>
     private static void _macrodict_load(
         FileStream macro_dict_file,
-        FhLangId   game_lang,
-        FhGameType game_type)
+        FhLangId   lang,
+        FhGameId   game)
     {
         Span<byte> macro_dict_bytes = new byte[macro_dict_file.Length];
         macro_dict_file.ReadExactly(macro_dict_bytes);
@@ -218,7 +218,7 @@ internal static class Program {
 
             ReadOnlySpan<byte> section_bytes = macro_dict_bytes[ section_offset .. ];
 
-            int   index_end      = FhCharset.read_index(section_bytes, FhDialogueIndexType.I16_X2, out int in_section_offset);
+            int   index_end      = FhCharset.read_index(section_bytes, FhTextIndexType.I16_X2, out int in_section_offset);
             int   indices_length = index_end / in_section_offset;
             int[] indices        = new int[indices_length + 1];
 
@@ -226,7 +226,7 @@ internal static class Program {
             indices[^1] = _next_non_null_macro_section(macro_dict_sections.AsSpan()[ (i + 1) .. ]);
 
             for (int j = 1; j < indices_length; j++) { // fill indices array
-                indices[j] = FhCharset.read_index(section_bytes[ in_section_offset .. ], FhDialogueIndexType.I16_X2, out int consumed) + section_offset;
+                indices[j] = FhCharset.read_index(section_bytes[ in_section_offset .. ], FhTextIndexType.I16_X2, out int consumed) + section_offset;
                 in_section_offset += consumed;
             }
 
@@ -237,9 +237,9 @@ internal static class Program {
                 int end   = indices[k + 1];
 
                 ReadOnlySpan<byte> src  = macro_dict_bytes[ start .. end ];
-                byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, game_lang, game_type));
+                byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, lang, game));
 
-                int dest_written  = FhCharset.decode(src, dest, game_lang, game_type);
+                int dest_written  = FhCharset.decode(src, dest, lang, game);
                 _macro_refs[i][k] = Encoding.UTF8.GetString(dest[ .. dest_written ]);
 
                 ArrayPool<byte>.Shared.Return(dest);
@@ -249,14 +249,14 @@ internal static class Program {
 
     /// <summary>
     ///     Converts a game-encoded dialogue <paramref name="input_file"/> into a text file in DEdit syntax, for a specified
-    ///     <paramref name="game_type"/>, <paramref name="index_type"/>, and <paramref name="game_lang"/>.
+    ///     <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>.
     /// </summary>
     private static void _decompile(
-        FileStream          input_file,
-        FileStream          output_file,
-        FhLangId            game_lang,
-        FhDialogueIndexType index_type,
-        FhGameType          game_type)
+        FileStream      input_file,
+        FileStream      output_file,
+        FhLangId        lang,
+        FhTextIndexType index_type,
+        FhGameId        game)
     {
         Span<byte> input_bytes = new byte[input_file.Length];
         input_file.ReadExactly(input_bytes);
@@ -282,9 +282,9 @@ internal static class Program {
             int end   = indices[i + 1];
 
             ReadOnlySpan<byte> src  = input_bytes[start .. end];
-            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, game_lang, game_type));
+            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, lang, game));
 
-            int dest_written = FhCharset.decode(src, dest, game_lang, game_type);
+            int dest_written = FhCharset.decode(src, dest, lang, game);
             output_file.Write(dest.AsSpan()[ .. dest_written ]);
 
             ArrayPool<byte>.Shared.Return(dest);
@@ -293,26 +293,26 @@ internal static class Program {
 
     /// <summary>
     ///     Converts a text <paramref name="input_file"/> in DEdit syntax into a game-encoded dialogue <paramref name="output_file"/>,
-    ///     for a specified <paramref name="game_type"/>, <paramref name="index_type"/>, and <paramref name="game_lang"/>.
+    ///     for a specified <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>.
     /// </summary>
     private static void _compile(
-        FileStream          input_file,
-        FileStream          macro_dict_file,
-        FileStream          output_file,
-        FhLangId            game_lang,
-        FhDialogueIndexType index_type,
-        FhGameType          game_type)
+        FileStream      input_file,
+        FileStream      macro_dict_file,
+        FileStream      output_file,
+        FhLangId        lang,
+        FhTextIndexType index_type,
+        FhGameId        game)
     {
-        _macrodict_load(macro_dict_file, game_lang, game_type);
+        _macrodict_load(macro_dict_file, lang, game);
 
         Span<byte> input_bytes = new byte[input_file.Length];
         input_file.ReadExactly(input_bytes);
 
-        Span<byte> dest = new byte[FhCharset.compute_encode_buffer_size(input_bytes, game_lang, game_type)];
-        int dest_written = FhCharset.encode(input_bytes, dest, game_lang, game_type);
+        Span<byte> dest = new byte[FhCharset.compute_encode_buffer_size(input_bytes, lang, game)];
+        int dest_written = FhCharset.encode(input_bytes, dest, lang, game);
 
         Span<byte> indices = new byte[FhCharset.compute_index_buffer_size(input_bytes, index_type)];
-        FhCharset.create_indices(dest, indices, index_type);
+        FhCharset.write_indices(dest, indices, index_type);
 
         output_file.Write(indices);
         output_file.Write(dest[ .. dest_written ]);
