@@ -8,20 +8,26 @@ internal static class Program {
      * Since we only offer macro dictionary compatibility to the level required
      * to decode base game text, we adhere to the restrictions of the format fully.
      *
-     * A macro dictionary in the base game can only contain ten sections.
+     * A macro dictionary in the base game can only contain sixteen sections.
      */
 
     private readonly static Dictionary<int, Dictionary<int, string>> _macro_refs = new() {
-        { 0, [] },
-        { 1, [] },
-        { 2, [] },
-        { 3, [] },
-        { 4, [] },
-        { 5, [] },
-        { 6, [] },
-        { 7, [] },
-        { 8, [] },
-        { 9, [] },
+        { 0,  [] },
+        { 1,  [] },
+        { 2,  [] },
+        { 3,  [] },
+        { 4,  [] },
+        { 5,  [] },
+        { 6,  [] },
+        { 7,  [] },
+        { 8,  [] },
+        { 9,  [] },
+        { 10, [] },
+        { 11, [] },
+        { 12, [] },
+        { 13, [] },
+        { 14, [] },
+        { 15, [] },
     };
 
     /// <summary>
@@ -203,7 +209,7 @@ internal static class Program {
         macro_dict_file.ReadExactly(macro_dict_bytes);
 
         /* [fkelava 14/10/25 20:09]
-         * A macro dictionary is a concatenation of up to ten dialogue files with a 64-byte header that indicates
+         * A macro dictionary is a concatenation of up to sixteen dialogue files with a 64-byte header that indicates
          * the offsets at which each section (i.e. dialogue file) begins. Index type is always I16_X2.
          */
 
@@ -218,7 +224,7 @@ internal static class Program {
 
             ReadOnlySpan<byte> section_bytes = macro_dict_bytes[ section_offset .. ];
 
-            int   index_end      = FhCharset.read_index(section_bytes, FhTextIndexType.I16_X2, out int in_section_offset);
+            int   index_end      = FhEncoding.read_index(section_bytes, FhTextIndexType.I16_X2, out int in_section_offset);
             int   indices_length = index_end / in_section_offset;
             int[] indices        = new int[indices_length + 1];
 
@@ -226,7 +232,7 @@ internal static class Program {
             indices[^1] = _next_non_null_macro_section(macro_dict_sections.AsSpan()[ (i + 1) .. ]);
 
             for (int j = 1; j < indices_length; j++) { // fill indices array
-                indices[j] = FhCharset.read_index(section_bytes[ in_section_offset .. ], FhTextIndexType.I16_X2, out int consumed) + section_offset;
+                indices[j] = FhEncoding.read_index(section_bytes[ in_section_offset .. ], FhTextIndexType.I16_X2, out int consumed) + section_offset;
                 in_section_offset += consumed;
             }
 
@@ -237,9 +243,9 @@ internal static class Program {
                 int end   = indices[k + 1];
 
                 ReadOnlySpan<byte> src  = macro_dict_bytes[ start .. end ];
-                byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, lang, game));
+                byte[]             dest = ArrayPool<byte>.Shared.Rent(FhEncoding.compute_decode_buffer_size(src, lang, game));
 
-                int dest_written  = FhCharset.decode(src, dest, lang, game);
+                int dest_written  = FhEncoding.decode(src, dest, lang, game);
                 _macro_refs[i][k] = Encoding.UTF8.GetString(dest[ .. dest_written ]);
 
                 ArrayPool<byte>.Shared.Return(dest);
@@ -263,7 +269,7 @@ internal static class Program {
 
         // Begin reading indices.
 
-        int   index_end      = FhCharset.read_index(input_bytes, index_type, out int offset);
+        int   index_end      = FhEncoding.read_index(input_bytes, index_type, out int offset);
         int   indices_length = index_end / offset;
         int[] indices        = new int[indices_length + 1];
 
@@ -271,7 +277,7 @@ internal static class Program {
         indices[^1] = int.CreateChecked(input_file.Length);
 
         for (int i = 1; i < indices_length; i++) { // Fill indices array.
-            indices[i] = FhCharset.read_index(input_bytes[offset .. ], index_type, out int consumed);
+            indices[i] = FhEncoding.read_index(input_bytes[offset .. ], index_type, out int consumed);
             offset += consumed;
         }
 
@@ -282,9 +288,9 @@ internal static class Program {
             int end   = indices[i + 1];
 
             ReadOnlySpan<byte> src  = input_bytes[start .. end];
-            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhCharset.compute_decode_buffer_size(src, lang, game));
+            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhEncoding.compute_decode_buffer_size(src, lang, game));
 
-            int dest_written = FhCharset.decode(src, dest, lang, game);
+            int dest_written = FhEncoding.decode(src, dest, lang, game);
             output_file.Write(dest.AsSpan()[ .. dest_written ]);
 
             ArrayPool<byte>.Shared.Return(dest);
@@ -308,11 +314,11 @@ internal static class Program {
         Span<byte> input_bytes = new byte[input_file.Length];
         input_file.ReadExactly(input_bytes);
 
-        Span<byte> dest = new byte[FhCharset.compute_encode_buffer_size(input_bytes, lang, game)];
-        int dest_written = FhCharset.encode(input_bytes, dest, lang, game);
+        Span<byte> dest = new byte[FhEncoding.compute_encode_buffer_size(input_bytes, lang, game)];
+        int dest_written = FhEncoding.encode(input_bytes, dest, lang, game);
 
-        Span<byte> indices = new byte[FhCharset.compute_index_buffer_size(input_bytes, index_type)];
-        FhCharset.write_indices(dest, indices, index_type);
+        Span<byte> indices = new byte[FhEncoding.compute_index_buffer_size(input_bytes, index_type)];
+        FhEncoding.write_indices(dest, indices, index_type);
 
         output_file.Write(indices);
         output_file.Write(dest[ .. dest_written ]);
