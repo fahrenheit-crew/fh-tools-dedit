@@ -2,6 +2,20 @@
 
 namespace Fahrenheit.Tools.DEdit;
 
+/* [fkelava 26/01/26 12:40]
+ * Some text files (e.g. `cdrom.fnd`) contain plain ANSI or UTF-8 text,
+ * but come in the standard indexed 'container' that the game usually uses for text files.
+ *
+ * Direct UTF8 passthrough is purely a DEdit concept. FhEncoding only deals with game-encoded text.
+ * This decision may be revisited later.
+ */
+
+public enum FhDEditEncoding {
+    NULL = 0,
+    GAME = 1,
+    UTF8 = 2
+}
+
 internal static class Program {
 
     /* [fkelava 11/10/25 14:10]
@@ -30,24 +44,32 @@ internal static class Program {
         { 15, [] },
     };
 
-    /// <summary>
-    ///     Checks which input files, if any, exist, and opens a <see cref="FileInfo"/> for each.
-    /// </summary>
-    private static List<FileInfo> _args_validate_input_files(ArgumentResult argr) {
-        List<FileInfo> input_files = [];
-
-        foreach (Token token in argr.Tokens) {
-            string file_path = token.Value;
-
-            if (!File.Exists(file_path)) {
-                argr.AddError($"Input file {file_path} does not exist.");
-                continue;
-            }
-
-            input_files.Add(new FileInfo(file_path));
+    private static Range _args_validate_segment(ArgumentResult argr) {
+        if (argr.Tokens.Count != 1) {
+            argr.AddError("Invalid segment format; ignoring");
+            return new Range(0, ^0);
         }
 
-        return input_files;
+        string[] segment_tokens = argr.Tokens[0].Value.Split(':', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (segment_tokens.Length != 2) {
+            argr.AddError("Invalid segment format; ignoring");
+            return new Range(0, ^0);
+        }
+
+        if (!int.TryParse(segment_tokens[0], out int segment_start) &&
+            !int.TryParse(segment_tokens[0], NumberStyles.HexNumber, null, out segment_start)) {
+            argr.AddError("Start of segment uninterpretable; ignoring");
+            return new Range(0, ^0);
+        }
+
+        if (!int.TryParse(segment_tokens[1], out int segment_end) &&
+            !int.TryParse(segment_tokens[1], NumberStyles.HexNumber, null, out segment_end)) {
+            argr.AddError("End of segment uninterpretable; ignoring");
+            return new Range(0, ^0);
+        }
+
+        return new Range(segment_start, segment_end);
     }
 
     private static int Main(string[] args) {
@@ -57,12 +79,24 @@ internal static class Program {
             Description                    = "Input file(s) to process.",
             Arity                          = ArgumentArity.OneOrMore,
             Recursive                      = true,
-            AllowMultipleArgumentsPerToken = true,
-            DefaultValueFactory            = _args_validate_input_files
+            AllowMultipleArgumentsPerToken = true
         };
 
         Option<string> opt_output = new("--output", "-o") {
             Description = "What folder to emit outputs to. The folder must already exist.",
+            Arity       = ArgumentArity.ExactlyOne,
+            Recursive   = true
+        };
+
+        Option<Range> opt_segment = new("--segment", "-s") {
+            Description  = "Which part of the file to interpret. Specify byte offsets as START:END.",
+            Arity        = ArgumentArity.ExactlyOne,
+            Recursive    = true,
+            CustomParser = _args_validate_segment
+        };
+
+        Option<FhDEditEncoding> opt_encoding = new("--encoding", "-e") {
+            Description = "What encoding to interpret the input file as having.",
             Arity       = ArgumentArity.ExactlyOne,
             Recursive   = true
         };
@@ -93,6 +127,8 @@ internal static class Program {
 
         cmd_root.Options.Add(opt_input);
         cmd_root.Options.Add(opt_output);
+        cmd_root.Options.Add(opt_segment);
+        cmd_root.Options.Add(opt_encoding);
         cmd_root.Options.Add(opt_lang);
         cmd_root.Options.Add(opt_index);
         cmd_root.Options.Add(opt_game);
@@ -103,16 +139,21 @@ internal static class Program {
         cmd_decompile.SetAction(parse_result => _c_decompile(
             parse_result.GetRequiredValue(opt_input),
             parse_result.GetRequiredValue(opt_output),
+            parse_result.GetValue        (opt_segment),
+            parse_result.GetRequiredValue(opt_encoding),
             parse_result.GetRequiredValue(opt_lang),
             parse_result.GetRequiredValue(opt_index),
             parse_result.GetRequiredValue(opt_game)
             ));
+
+        Command cmd_decompile_macro = new("decompile-macro", "Decompiles a macro dictionary file.");
 
         Command cmd_compile = new("compile", "Compiles a dialogue file.");
 
         cmd_compile.SetAction(parse_result => _c_compile(
             parse_result.GetRequiredValue(opt_input),
             parse_result.GetRequiredValue(opt_output),
+            parse_result.GetRequiredValue(opt_encoding),
             parse_result.GetRequiredValue(opt_lang),
             parse_result.GetRequiredValue(opt_index),
             parse_result.GetRequiredValue(opt_game),
@@ -127,30 +168,32 @@ internal static class Program {
     }
 
     /// <summary>
-    ///     Converts all game-encoded dialogue files in <paramref name="input_files"/> into text files in DEdit syntax, for a specified
-    ///     <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>, emitting them to <paramref name="output_dir"/>.
+    ///     Converts all game-encoded dialogue files in <paramref name="input"/> into text files in DEdit syntax, for a specified
+    ///     <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>, emitting them to <paramref name="output"/>.
     /// </summary>
     private static void _c_decompile(
-        List<FileInfo>  input_files,
-        string          output_dir,
+        List<FileInfo>  input,
+        string          output,
+        Range           segment,
+        FhDEditEncoding encoding,
         FhLangId        lang,
         FhTextIndexType index_type,
         FhGameId        game)
     {
         Stopwatch perf = Stopwatch.StartNew();
 
-        foreach (FileInfo input_file in input_files) {
-            string output_path = Path.Join(output_dir, $"{input_file.Name}.txt");
+        foreach (FileInfo input_file in input) {
+            string output_path = Path.Join(output, $"{input_file.Name}.txt");
 
             using (FileStream input_file_stream  = input_file.OpenRead())
             using (FileStream output_file_stream = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None)) {
-                _decompile(input_file_stream, output_file_stream, lang, index_type, game);
+                _decompile(input_file_stream, output_file_stream, segment, encoding, lang, index_type, game);
             }
 
             Console.WriteLine($"{input_file.Name} -> {output_path}");
         }
 
-        Console.WriteLine($"processed {input_files.Count} files in {perf.Elapsed}");
+        Console.WriteLine($"processed {input.Count} files in {perf.Elapsed}");
     }
 
     /// <summary>
@@ -160,6 +203,7 @@ internal static class Program {
     private static void _c_compile(
         List<FileInfo>  input_files,
         string          output_dir,
+        FhDEditEncoding encoding,
         FhLangId        lang,
         FhTextIndexType index_type,
         FhGameId        game,
@@ -171,10 +215,10 @@ internal static class Program {
         foreach (FileInfo input_file in input_files) {
             string output_path = Path.Join(output_dir, $"{Path.GetFileNameWithoutExtension(input_file.FullName)}");
 
-            using (FileStream input_file_stream  = input_file.OpenRead())
-            using (FileStream output_file_stream = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None))
-            using (FileStream macro_file_stream  = macro_dict.OpenRead()) {
-                _compile(input_file_stream, macro_file_stream, output_file_stream, lang, index_type, game);
+            using (FileStream fs_input  = input_file.OpenRead())
+            using (FileStream fs_output = new FileStream(output_path, FileMode.Create, FileAccess.Write, FileShare.None))
+            using (FileStream fs_macro  = macro_dict.OpenRead()) {
+                _compile(fs_input, fs_macro, fs_output, encoding, lang, index_type, game);
             }
 
             Console.WriteLine($"{input_file.Name} -> {output_path}");
@@ -185,11 +229,11 @@ internal static class Program {
 
    /* [fkelava 14/10/25 20:09]
     * Section offsets in macro dictionaries can arbitrarily be zero. This helper is used to skip to the next non-zero section.
-    * One always exists because DEdit injects the length of the file as the beginning of its pseudo-'11th' section.
+    * One always exists because DEdit injects the length of the file as the beginning of its pseudo-'17th' section.
     */
     private static int _next_non_null_macro_section(ReadOnlySpan<int> sections) {
         foreach (int section in sections) {
-            if (section != 0x00) return section;
+            if (section != 0) return section;
         }
 
         throw new Exception("UNREACHABLE");
@@ -254,29 +298,39 @@ internal static class Program {
     }
 
     /// <summary>
-    ///     Converts a game-encoded dialogue <paramref name="input_file"/> into a text file in DEdit syntax, for a specified
+    ///     Converts a game or UTF8-encoded text <paramref name="input"/> into a text file in DEdit syntax, for a specified
     ///     <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>.
     /// </summary>
     private static void _decompile(
-        FileStream      input_file,
-        FileStream      output_file,
+        FileStream      input,
+        FileStream      output,
+        Range           segment,
+        FhDEditEncoding encoding,
         FhLangId        lang,
         FhTextIndexType index_type,
         FhGameId        game)
     {
-        Span<byte> input_bytes = new byte[input_file.Length];
-        input_file.ReadExactly(input_bytes);
+        Span<byte> input_bytes = new byte[input.Length];
+        input.ReadExactly(input_bytes);
 
         // Begin reading indices.
 
-        int   index_end      = FhEncoding.read_index(input_bytes, index_type, out int offset);
+        /* [fkelava 26/01/26 12:50]
+         * The entire file must be loaded regardless of the 'segment' argument because indices
+         * may contain absolute offsets, which will fail to resolve if we scope too early.
+         *
+         * The end of 'segment' is as of yet unused, because it has no effect in indexed mode
+         * and DEdit does not (yet) support indexless operation.
+         */
+
+        int   index_end      = FhEncoding.read_index(input_bytes[segment], index_type, out int offset);
         int   indices_length = index_end / offset;
         int[] indices        = new int[indices_length + 1];
 
         indices[0]  = index_end;
-        indices[^1] = int.CreateChecked(input_file.Length);
+        indices[^1] = int.CreateChecked(input.Length);
 
-        for (int i = 1; i < indices_length; i++) { // Fill indices array.
+        for (int i = 1; i < indices_length; i++) {
             indices[i] = FhEncoding.read_index(input_bytes[offset .. ], index_type, out int consumed);
             offset += consumed;
         }
@@ -287,24 +341,36 @@ internal static class Program {
             int start = indices[i];
             int end   = indices[i + 1];
 
-            ReadOnlySpan<byte> src  = input_bytes[start .. end];
-            byte[]             dest = ArrayPool<byte>.Shared.Rent(FhEncoding.compute_decode_buffer_size(src, lang, game));
+            ReadOnlySpan<byte> src = input_bytes[start .. end];
+
+            /* [fkelava 26/01/26 12:40]
+             * In UTF8 mode we must mimic what FhEncoding would do and emit an {END} mark.
+             */
+
+            if (encoding is FhDEditEncoding.UTF8) {
+                output.Write(src);
+                output.Write("{END}\r\n"u8);
+                continue;
+            }
+
+            byte[] dest = ArrayPool<byte>.Shared.Rent(FhEncoding.compute_decode_buffer_size(src, lang, game));
 
             int dest_written = FhEncoding.decode(src, dest, lang, game);
-            output_file.Write(dest.AsSpan()[ .. dest_written ]);
+            output.Write(dest.AsSpan()[ .. dest_written ]);
 
             ArrayPool<byte>.Shared.Return(dest);
         }
     }
 
     /// <summary>
-    ///     Converts a text <paramref name="input_file"/> in DEdit syntax into a game-encoded dialogue <paramref name="output_file"/>,
+    ///     Converts a text <paramref name="input_file"/> in DEdit syntax into a game or UTF8 encoded dialogue <paramref name="output"/>,
     ///     for a specified <paramref name="game"/>, <paramref name="index_type"/>, and <paramref name="lang"/>.
     /// </summary>
     private static void _compile(
         FileStream      input_file,
         FileStream      macro_dict_file,
-        FileStream      output_file,
+        FileStream      output,
+        FhDEditEncoding encoding,
         FhLangId        lang,
         FhTextIndexType index_type,
         FhGameId        game)
@@ -320,7 +386,7 @@ internal static class Program {
         Span<byte> indices = new byte[FhEncoding.compute_index_buffer_size(input_bytes, index_type)];
         FhEncoding.write_indices(dest, indices, index_type);
 
-        output_file.Write(indices);
-        output_file.Write(dest[ .. dest_written ]);
+        output.Write(indices);
+        output.Write(dest[ .. dest_written ]);
     }
 }
