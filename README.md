@@ -1,8 +1,7 @@
 # Fahrenheit Dialogue Editor (DEdit)
----
 
 DEdit is a standalone application that utilizes Fahrenheit's
-``FhCharset`` API to perform transformations between UTF-8
+``FhEncoding`` API to perform transformations between UTF-8
 and game encoding. Resulting dialogue files can be distributed
 alongside Fahrenheit mods and replace original game dialogue
 using the External File Loader.
@@ -18,11 +17,7 @@ Releases are available in the
 
 DEdit is built alongside Fahrenheit. Clone the
 [main Fahrenheit repository](https://github.com/peppy-enterprises/fahrenheit/releases) to begin,
-and build it using the instructions in that repository.
-
-Debug builds of DEdit can be run from Visual Studio.
-Release builds can be generated and placed in the correct place with the
-[`tools/deploy.ps1` script](https://github.com/peppy-enterprises/fahrenheit/blob/main/tools/deploy.ps1).
+and build and deploy it using the instructions in that repository.
 
 ### Usage
 
@@ -31,28 +26,31 @@ into a response file, one argument per line, then invoke DEdit as such:
 ```
 PS> cat test.rsp
 decompile
--i
-"znkd0900.bin"
-"znkd1000.bin"
-"znkd1300.bin"
-"znkd1200.bin"
-"znkd1400.bin"
+-s
+4:811400
+-e
+UTF8
 -o
-D:\work\dedit\test
+.
 -l
-Chinese
+English
 -g
 FFX
 -it
-I32_X2
+I32_X1
+-i
+"..\env\ffx_ps2\ffx\proj\battle\jp\cddata\cdrom.fnd"
 ```
 ```
 .\fhdedit.exe '@test.rsp'
 ```
 
 At a minimum you must specify any number of input files (`-i`),
-the selected game type (`-g`), game language (`-l`), index type
+encoding mode (`-e`), game type (`-g`), game language (`-l`), index type
 (`-it`), and an output folder (`-o`). The output folder must already exist.
+
+For examples, refer to any scripts marked `dedit_*.rsp` in the Fahrenheit
+repository's [scripts directory](https://github.com/peppy-enterprises/fahrenheit/tree/main/scripts).
 
 The following commands and arguments are available:
 ```
@@ -62,14 +60,17 @@ Usage:
 Options:
   -?, -h, --help                                              Show help and usage information
   --version                                                   Show version information
-  -i, --input                                                 Input file(s) to process. []
+  -i, --input                                                 Input file(s) to process.
   -o, --output                                                What folder to emit outputs to. The folder must already
                                                               exist.
+  -s, --segment                                               Which part of the file to interpret. Specify byte offsets
+                                                              as START:END.
+  -e, --encoding <GAME|NULL|UTF8>                             What encoding to interpret the input file as having.
   -l, --lang                                                  Set the language to interpret the input file as.
   <Chinese|Debug|English|French|German|Italian|Japanese|Kore
   an|Spanish>
-  -it, --index-type <I16_X1|I16_X2|I32_X1|I32_X2>             Set the indexing type for the dialogue file in question.
-  -g, --game-type <FFX|FFX2|NULL>                             Set the game type for the dialogue file in question.
+  -it, --index-type <COM_X1|COM_X2|I16_X1|I16_X2|I32_X1>      Set the indexing type for the dialogue file in question.
+  -g, --game-type <FFX|FFX2|FFX2LM|NULL>                      Set the game type for the dialogue file in question.
   -m, --macro-dict                                            The dictionary to use to resolve any encountered macro
                                                               refs.
 
