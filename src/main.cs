@@ -89,10 +89,11 @@ internal static class Program {
         };
 
         Option<Range> opt_segment = new("--segment", "-s") {
-            Description  = "Which part of the file to interpret. Specify byte offsets as START:END.",
-            Arity        = ArgumentArity.ExactlyOne,
-            Recursive    = true,
-            CustomParser = _args_validate_segment
+            Description         = "Which part of the file to interpret. Specify byte offsets as START:END.",
+            Arity               = ArgumentArity.ExactlyOne,
+            Recursive           = true,
+            CustomParser        = _args_validate_segment,
+            DefaultValueFactory = argr => new Range(0, ^0)
         };
 
         Option<FhDEditEncoding> opt_encoding = new("--encoding", "-e") {
