@@ -11,12 +11,12 @@ All transformations DEdit offers are also available at runtime for Fahrenheit mo
 ### Obtaining releases
 
 Releases are available in the
-[main Fahrenheit repository](https://github.com/peppy-enterprises/fahrenheit/releases).
+[main Fahrenheit repository](https://github.com/fahrenheit-crew/fahrenheit/releases).
 
 ### Building from source
 
 DEdit is built alongside Fahrenheit. Clone the
-[main Fahrenheit repository](https://github.com/peppy-enterprises/fahrenheit/releases) to begin,
+[main Fahrenheit repository](https://github.com/fahrenheit-crew/fahrenheit/releases) to begin,
 and build and deploy it using the instructions in that repository.
 
 ### Usage
@@ -50,7 +50,7 @@ encoding mode (`-e`), game type (`-g`), game language (`-l`), index type
 (`-it`), and an output folder (`-o`). The output folder must already exist.
 
 For examples, refer to any scripts marked `dedit_*.rsp` in the Fahrenheit
-repository's [scripts directory](https://github.com/peppy-enterprises/fahrenheit/tree/main/scripts).
+repository's [scripts directory](https://github.com/fahrenheit-crew/fahrenheit/tree/main/scripts).
 
 The following commands and arguments are available:
 ```
