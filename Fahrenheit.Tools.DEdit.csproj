@@ -1,4 +1,4 @@
-﻿<Project>
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <!-- ASSEMBLY BASIC PROPERTIES -->
     <PropertyGroup>
@@ -22,10 +22,6 @@
         <PublishSingleFile>true</PublishSingleFile>
         <SelfContained>false</SelfContained>
     </PropertyGroup>
-
-    <!-- SDK REFERENCES -->
-    <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
-    <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
     <!-- SHARED FILE LINKS -->
     <ItemGroup>
